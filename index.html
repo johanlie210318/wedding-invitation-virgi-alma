@@ -591,7 +591,8 @@ const EVENT_END = new Date("2027-09-20T13:00:00+07:00");
    --------------------------------------------------------------------- */
 (function setGuestName(){
   const params = new URLSearchParams(window.location.search);
-  const guest = params.get('to');
+  // Mendukung dua parameter: ?guest=Nama atau ?to=Nama (keduanya berfungsi sama)
+  const guest = params.get('guest') || params.get('to');
   if(guest){
     const decoded = decodeURIComponent(guest.replace(/\+/g,' '));
     document.getElementById('guestName').textContent = decoded;
