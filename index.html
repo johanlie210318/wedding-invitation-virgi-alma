@@ -11,7 +11,7 @@
 <!-- ======================= GOOGLE FONTS ======================= -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Cormorant+Garamond:ital@0;1&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500,600,700;1,400&family=Cormorant+Garamond:ital@0;1&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <style>
   :root{
@@ -130,6 +130,42 @@
     pointer-events:none;
   }
   #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---------- Carousel Ucapan & Doa ---------- */
+  #wishTrack{
+    display:flex;
+    overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    gap:16px;
+    padding-bottom:4px;
+  }
+  #wishTrack::-webkit-scrollbar{ display:none; }
+  .wish-slide{
+    flex:0 0 88%;
+    scroll-snap-align:center;
+  }
+  @media (min-width:640px){
+    .wish-slide{ flex-basis:60%; }
+  }
+  .wish-dots{ display:flex; justify-content:center; gap:7px; margin-top:16px; }
+  .wish-dot{
+    width:7px; height:7px; border-radius:9999px;
+    background:rgba(201,162,75,.3);
+    transition:background .3s ease, transform .3s ease;
+    cursor:pointer;
+  }
+  .wish-dot.active{ background:var(--gold); transform:scale(1.25); }
+  .wish-nav-btn{
+    width:38px; height:38px; border-radius:9999px;
+    border:1px solid rgba(201,162,75,.4);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--gold-soft);
+    transition:background .25s ease, color .25s ease;
+    flex-shrink:0;
+  }
+  .wish-nav-btn:hover{ background:var(--gold); color:var(--navy-deep); }
 </style>
 </head>
 
@@ -407,7 +443,7 @@
           <div class="text-left">
             <p class="text-gold-soft text-xs tracking-widest uppercase">Bank BCA</p>
             <p class="font-display text-lg tracking-wide">1234 5678 90</p>
-            <p class="text-cream/60 text-xs">a.n. Virgi Ghali Putra
+            <p class="text-cream/60 text-xs">a.n. Virgi Ghali Putra</p>
           </div>
           <button class="btn-outline-gold px-4 py-2 rounded-full text-xs shrink-0"
             onclick="copyText('1234567890', this)">Salin</button>
@@ -479,27 +515,38 @@
     </div>
   </section>
 
-  <!-- ============ 10. UCAPAN & DOA ============ -->
-  <section class="bg-navy py-24 px-6">
+  <!-- ============ 10. UCAPAN & DOA (CAROUSEL — manual geser + auto-play) ============ -->
+  <section class="bg-navy py-24 px-6 overflow-hidden">
     <div class="max-w-lg mx-auto text-center reveal">
       <p class="font-script text-gold text-2xl mb-2">Untuk Kami</p>
       <h2 class="font-display text-4xl mb-10">Ucapan & Doa</h2>
 
-      <form class="space-y-3 mb-10" onsubmit="return handleWish(event)">
+      <form class="space-y-3 mb-14" onsubmit="return handleWish(event)">
         <input required type="text" id="wishName" placeholder="Nama Anda"
           class="w-full bg-navy-light/50 border border-gold/30 rounded-lg px-4 py-3 text-cream placeholder-cream/30 focus:outline-none focus:border-gold text-sm">
         <textarea required id="wishMessage" rows="3" placeholder="Tulis ucapan dan doa terbaik Anda..."
           class="w-full bg-navy-light/50 border border-gold/30 rounded-lg px-4 py-3 text-cream placeholder-cream/30 focus:outline-none focus:border-gold text-sm"></textarea>
         <button type="submit" class="btn-outline-gold w-full py-3 rounded-lg text-sm">Kirim Ucapan</button>
       </form>
+    </div>
 
-      <!-- Daftar ucapan (disimpan sementara di browser / local state, tanpa backend) -->
-      <div id="wishList" class="space-y-3 text-left max-h-72 overflow-y-auto pr-1">
-        <div class="bg-navy-light/40 border border-gold/20 rounded-xl p-4">
-          <p class="text-gold-soft text-sm font-medium">Syifa & Ulum</p>
-          <p class="text-cream/70 text-sm mt-1">Selamat menempuh hidup baru! Semoga menjadi keluarga yang sakinah, mawaddah, warahmah. ❤️</p>
+    <!-- Carousel wrapper -->
+    <div class="max-w-2xl mx-auto relative">
+      <div class="flex items-center gap-3">
+        <!-- Tombol prev -->
+        <button type="button" class="wish-nav-btn hidden sm:flex" onclick="wishGo(-1)" aria-label="Ucapan sebelumnya">‹</button>
+
+        <!-- Track ucapan (geser manual: swipe / drag / scroll) -->
+        <div id="wishTrack" class="flex-1">
+          <!-- Setiap ucapan baru akan otomatis disisipkan di sini oleh JS sebagai .wish-slide -->
         </div>
+
+        <!-- Tombol next -->
+        <button type="button" class="wish-nav-btn hidden sm:flex" onclick="wishGo(1)" aria-label="Ucapan berikutnya">›</button>
       </div>
+
+      <!-- Dots indikator -->
+      <div id="wishDots" class="wish-dots"></div>
     </div>
   </section>
 
@@ -676,27 +723,118 @@ function handleRsvp(e){
 }
 
 /* ---------------------------------------------------------------------
-   9. Ucapan & Doa (disimpan sementara di local state, tanpa backend)
+   9. UCAPAN & DOA — CAROUSEL (geser manual + auto-play)
    --------------------------------------------------------------------- */
+
+// Data ucapan awal (contoh). Ucapan baru dari form akan otomatis ditambahkan ke sini.
+let wishes = [
+  { name: "Syifa & Ulum", message: "Selamat menempuh hidup baru! Semoga menjadi keluarga yang sakinah, mawaddah, warahmah. ❤️" },
+  { name: "Dina Pratama", message: "Selamat berbahagia untuk kalian berdua, semoga rumah tangganya selalu diberkahi dan langgeng ya!" },
+  { name: "Reza & Ayu", message: "Barakallahu lakuma wa baraka 'alaikuma. Selamat menempuh babak baru kehidupan!" }
+];
+
+const wishTrack = document.getElementById('wishTrack');
+const wishDots = document.getElementById('wishDots');
+let wishIndex = 0;
+let wishAutoTimer = null;
+
+function renderWishes(){
+  wishTrack.innerHTML = '';
+  wishDots.innerHTML = '';
+
+  wishes.forEach((w, i) => {
+    // slide ucapan
+    const slide = document.createElement('div');
+    slide.className = 'wish-slide';
+    slide.innerHTML = `
+      <div class="bg-navy-light/40 border border-gold/20 rounded-2xl p-6 h-full">
+        <p class="text-gold text-2xl leading-none mb-2">&ldquo;</p>
+        <p class="text-cream/80 text-sm leading-relaxed"></p>
+        <p class="text-gold-soft text-sm font-medium mt-4"></p>
+      </div>
+    `;
+    slide.querySelector('.text-cream\\/80').textContent = w.message;
+    slide.querySelector('.text-gold-soft').textContent = '— ' + w.name;
+    wishTrack.appendChild(slide);
+
+    // dot indikator
+    const dot = document.createElement('span');
+    dot.className = 'wish-dot' + (i === wishIndex ? ' active' : '');
+    dot.addEventListener('click', () => wishGoTo(i));
+    wishDots.appendChild(dot);
+  });
+}
+
+function updateActiveDot(){
+  document.querySelectorAll('.wish-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === wishIndex);
+  });
+}
+
+// Geser ke slide tertentu (dipicu oleh dot atau auto-play)
+function wishGoTo(i, behavior = 'smooth'){
+  wishIndex = (i + wishes.length) % wishes.length;
+  const slide = wishTrack.children[wishIndex];
+  if(slide){
+    wishTrack.scrollTo({ left: slide.offsetLeft - wishTrack.offsetLeft, behavior });
+  }
+  updateActiveDot();
+}
+
+// Tombol prev/next
+function wishGo(dir){
+  resetAutoPlay();
+  wishGoTo(wishIndex + dir);
+}
+
+// Auto-play: geser otomatis tiap beberapa detik
+function startAutoPlay(){
+  wishAutoTimer = setInterval(() => {
+    wishGoTo(wishIndex + 1);
+  }, 4500);
+}
+function resetAutoPlay(){
+  clearInterval(wishAutoTimer);
+  startAutoPlay();
+}
+
+// Deteksi geser manual (scroll/swipe/drag) agar dot & index tetap sinkron,
+// dan auto-play berhenti sejenak lalu lanjut lagi setelah user selesai menggeser
+let wishScrollTimeout = null;
+wishTrack.addEventListener('scroll', () => {
+  clearTimeout(wishScrollTimeout);
+  wishScrollTimeout = setTimeout(() => {
+    const trackCenter = wishTrack.scrollLeft + wishTrack.offsetWidth / 2;
+    let closest = 0;
+    let closestDist = Infinity;
+    Array.from(wishTrack.children).forEach((slide, i) => {
+      const dist = Math.abs((slide.offsetLeft + slide.offsetWidth / 2) - trackCenter);
+      if(dist < closestDist){ closestDist = dist; closest = i; }
+    });
+    wishIndex = closest;
+    updateActiveDot();
+  }, 120);
+});
+wishTrack.addEventListener('touchstart', resetAutoPlay, { passive:true });
+wishTrack.addEventListener('mousedown', resetAutoPlay);
+
+// Tambah ucapan baru dari form -> otomatis masuk ke carousel
 function handleWish(e){
   e.preventDefault();
   const name = document.getElementById('wishName').value;
   const message = document.getElementById('wishMessage').value;
 
-  const wishList = document.getElementById('wishList');
-  const card = document.createElement('div');
-  card.className = 'bg-navy-light/40 border border-gold/20 rounded-xl p-4';
-  card.innerHTML = `
-    <p class="text-gold-soft text-sm font-medium"></p>
-    <p class="text-cream/70 text-sm mt-1"></p>
-  `;
-  card.querySelector('p:first-child').textContent = name;
-  card.querySelector('p:last-child').textContent = message;
+  wishes.unshift({ name, message }); // ucapan terbaru muncul di paling depan
+  renderWishes();
+  wishGoTo(0, 'auto');
 
-  wishList.prepend(card);
   e.target.reset();
   return false;
 }
+
+// Inisialisasi carousel saat halaman dimuat
+renderWishes();
+startAutoPlay();
 
 /* ---------------------------------------------------------------------
    10. Fade-in on scroll (IntersectionObserver, ringan tanpa library)
